@@ -1,0 +1,141 @@
+#include "quaternion.h"
+#include "accelgyro.h"
+#include "mpu6050_calibration.h"
+#include "i2cmux.h"
+#include "MPU6050.h"
+#include "TimerOne.h"
+#include "icomms.h"
+#define SECONDS(x) x * 1000
+#define THRESHOLD_TIME 1
+
+/* MODES OF OPERATIONS, COMMENT/UNCOMMENT HERE! */
+#define MODE_CALIBRATE 0
+#define MODE_TRAINING 1
+#define MODE_GAME 2
+#define MODE_SERIAL 3
+// If you are not continous serial, this should be 0. Else, 1
+#define CONTINUOUS 0
+
+#define MODE MODE_GAME
+
+unsigned long elapsedTime = 0;
+uint8_t buf[12] = {0};
+
+volatile uint8_t sequenceNumber = 0;
+volatile int state = 0;
+unsigned volatile long expireTime = 0;
+
+unsigned volatile long startTime = 0;
+
+void setup_timer()
+{
+  Timer1.initialize(SENSOR_LATENCY_MS);
+  Timer1.attachInterrupt(writeAll);
+}
+
+void button_isr()
+{
+  if (millis() - startTime < 500) return;
+  if (expireTime != 0) return;
+  
+  expireTime = millis() + SECONDS(THRESHOLD_TIME);
+
+  startTime = millis();
+  sequenceNumber++;
+
+}
+
+void writeQuat()
+{
+  writeQuatToBuf(buf, 6, 0);
+  writeQuatToBuf(buf, 7, 4);
+  Serial.write(buf, 8);
+  while (millis() - elapsedTime < 50)
+    ;
+  elapsedTime = millis();
+}
+
+void writeAll()
+{
+  // If Time exceed screening window, deactivate writing.
+  if (millis() > expireTime && MODE == MODE_TRAINING)
+  {
+    expireTime = 0;
+    return;
+  }
+  
+  // If writing not deactivated, write values.
+  else if (expireTime != 0 || MODE == MODE_GAME  || MODE == MODE_SERIAL)
+  {
+    noInterrupts();
+    state = 1;
+    interrupts();
+  }
+
+  // Print shit
+  // for (int i = 0; i < 6; i++)
+  // {
+  //   Serial.print((buf[i * 2 + 1] << 8 | buf[i * 2]));
+  //   Serial.print(", ");
+  // }
+  // Serial.println();
+}
+
+void setup()
+{
+
+  Wire.begin();
+  TCA9548A(6);
+
+  // initialize serial communication
+  Serial.begin(115200);
+  if (MODE == MODE_CALIBRATE) {
+    // Blocking call, will not return.
+    setupCalibration(6);
+  }
+  // initialize device
+  accelgyro.initialize();
+
+  // verify connection
+
+  accelgyro.testConnection();
+
+  if (!(MODE == MODE_SERIAL || MODE == MODE_TRAINING)) handshake();
+  if (MODE == MODE_TRAINING) {
+    pinMode(2, INPUT);
+    attachInterrupt(0, button_isr, RISING);
+  }
+  setup_timer();
+}
+
+void loop()
+{
+  if (state == 0) return; 
+  else {
+    state = 0;
+
+    writeAccelGyroToBuf(mpu, buf, 6, 0);
+
+    if (!(MODE == MODE_SERIAL || MODE == MODE_TRAINING)) readSensor(buf[0], buf[1], buf[2]);
+    
+    else {
+
+      if(MODE == MODE_TRAINING) {
+        Serial.print(sequenceNumber);
+       Serial.print(", ");
+       
+        }
+
+      for (int i = 0; i < 3; i++)
+      {
+        Serial.print((int8_t)buf[i]);
+        Serial.print(", ");
+      }
+      Serial.println();
+    }
+  }
+  if (!(MODE == MODE_SERIAL || MODE == MODE_TRAINING)) {
+    transmit();
+    reconnectIfDisconnected();
+  }
+}
