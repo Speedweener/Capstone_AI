@@ -2,7 +2,7 @@
 <br/>
 
 ## mpu6050_demo
-Arduino code used for the Bluno with the IMU. From **firmware**.
+Arduino code used for the Bluno with the IMU.
 <br/> <br/>
 
 ## network_hardware
@@ -20,7 +20,6 @@ Software deployment of neural network.
 Files used for the training of neural network. Trained in a conda environment similar to the one in **network_software_deployment**. Contains CSV files which were logged using serial_data_logging.py with the Bluno + IMU connected. 
 <br/> <br/>
 NN training.ipynb requires exactly 100 values for each sample/gesture, hence the python file for filtering.
-
 
 
 
