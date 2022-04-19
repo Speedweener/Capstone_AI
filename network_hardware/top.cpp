@@ -101,6 +101,10 @@ void main_fun(stream_io& S_AXIS, stream_io& M_AXIS)
 	fixed_pt output_3[NUMBER_OF_OUTPUTS];
 	io_pt final_output[NUMBER_OF_OUTPUTS] = {0};
 
+	#pragma HLS array_partition variable=output
+	#pragma HLS array_partition variable=output_2
+
+	#pragma HLS array_partition variable=output_3
 
 	AXI_IO in;
 	AXI_IO out;
